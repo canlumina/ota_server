@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>固件管理 - STM32 OTA 服务器</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🛠️ 固件管理</h1>
+            <p>管理已上传的固件文件</p>
+        </header>
+
+        <nav>
+            <a href="{{ url_for('index') }}" class="btn btn-nav">上传固件</a>
+            <a href="{{ url_for('manage') }}" class="btn btn-nav active">管理固件</a>
+        </nav>
+
+        <!-- 消息提示 -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category }}">
+                        {{ message }}
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <!-- 统计信息 -->
+        <div class="stats">
+            <div class="stat-card">
+                <h3>{{ firmware_list|length }}</h3>
+                <p>固件总数</p>
+            </div>
+            <div class="stat-card">
+                <h3>{{ firmware_list.values() | sum(attribute='size') | filesizeformat if firmware_list else '0 B' }}</h3>
+                <p>总存储大小</p>
+            </div>
+            <div class="stat-card">
+                <h3>{{ firmware_list.values() | sum(attribute='download_count') if firmware_list else 0 }}</h3>
+                <p>总下载次数</p>
+            </div>
+        </div>
+
+        <!-- 固件列表 -->
+        <div class="firmware-management">
+            {% if firmware_list %}
+                <div class="firmware-table-container">
+                    <table class="firmware-table">
+                        <thead>
+                            <tr>
+                                <th>版本</th>
+                                <th>描述</th>
+                                <th>文件名</th>
+                                <th>大小</th>
+                                <th>MD5</th>
+                                <th>上传时间</th>
+                                <th>下载次数</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for version, info in firmware_list.items() %}
+                                <tr>
+                                    <td>
+                                        <strong>{{ version }}</strong>
+                                        {% if loop.first %}
+                                            <span class="badge badge-latest">最新</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ info.description or '无描述' }}</td>
+                                    <td><code>{{ info.original_name }}</code></td>
+                                    <td>{{ "%.1f"|format(info.size / 1024) }} KB</td>
+                                    <td>
+                                        <code class="md5-hash" title="{{ info.md5 }}">
+                                            {{ info.md5[:8] }}...
+                                        </code>
+                                    </td>
+                                    <td>{{ info.upload_time[:19].replace('T', ' ') }}</td>
+                                    <td>{{ info.download_count or 0 }}</td>
+                                    <td class="actions">
+                                        <a href="/api/firmware/download/{{ version }}" 
+                                           class="btn btn-small btn-success" title="下载固件">
+                                            📥
+                                        </a>
+                                        <button onclick="showFirmwareInfo('{{ version }}')" 
+                                                class="btn btn-small btn-info" title="查看详情">
+                                            ℹ️
+                                        </button>
+                                        <button onclick="copyDownloadUrl('{{ version }}')" 
+                                                class="btn btn-small btn-secondary" title="复制下载链接">
+                                            📋
+                                        </button>
+                                        <button onclick="deleteFirmware('{{ version }}')" 
+                                                class="btn btn-small btn-danger" title="删除固件">
+                                            🗑️
+                                        </button>
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% else %}
+                <div class="empty-state">
+                    <h3>📭 没有固件文件</h3>
+                    <p>还没有上传任何固件文件</p>
+                    <a href="{{ url_for('index') }}" class="btn btn-primary">上传第一个固件</a>
+                </div>
+            {% endif %}
+        </div>
+
+        <!-- API 测试工具 -->
+        <div class="api-test">
+            <h2>🔧 API 测试工具</h2>
+            <div class="test-buttons">
+                <button onclick="testApi('/api/test')" class="btn btn-info">测试连接</button>
+                <button onclick="testApi('/api/firmware/list')" class="btn btn-info">获取固件列表</button>
+                <button onclick="testApi('/api/firmware/latest')" class="btn btn-info">获取最新固件</button>
+            </div>
+            <div id="api-result" class="api-result"></div>
+        </div>
+    </div>
+
+    <footer>
+        <p>STM32F103ZET6 Bootloader OTA Server | Generated with Claude Code</p>
+    </footer>
+
+    <!-- 固件详情模态框 -->
+    <div id="firmware-modal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal()">&times;</span>
+            <h2>固件详情</h2>
+            <div id="firmware-details"></div>
+        </div>
+    </div>
+
+    <script>
+        const firmwareData = {{ firmware_list | tojson }};
+
+        function deleteFirmware(version) {
+            if (confirm(`确定要删除固件版本 ${version} 吗？\n此操作不可撤销！`)) {
+                fetch(`/delete/${version}`, {
+                    method: 'POST',
+                })
+                .then(response => {
+                    if (response.ok) {
+                        window.location.reload();
+                    } else {
+                        alert('删除失败，请重试');
+                    }
+                })
+                .catch(error => {
+                    alert('删除失败: ' + error.message);
+                });
+            }
+        }
+
+        function copyDownloadUrl(version) {
+            const url = `http://${window.location.host}/api/firmware/download/${version}`;
+            navigator.clipboard.writeText(url).then(() => {
+                showToast('下载链接已复制到剪贴板！');
+            }).catch(() => {
+                prompt('复制此下载链接:', url);
+            });
+        }
+
+        function showFirmwareInfo(version) {
+            const info = firmwareData[version];
+            if (!info) return;
+
+            const details = `
+                <div class="firmware-detail">
+                    <h3>版本 ${version}</h3>
+                    <table class="detail-table">
+                        <tr><td><strong>原始文件名:</strong></td><td>${info.original_name}</td></tr>
+                        <tr><td><strong>服务器文件名:</strong></td><td>${info.filename}</td></tr>
+                        <tr><td><strong>文件大小:</strong></td><td>${info.size} 字节 (${(info.size/1024).toFixed(1)} KB)</td></tr>
+                        <tr><td><strong>MD5 校验值:</strong></td><td><code>${info.md5}</code></td></tr>
+                        <tr><td><strong>版本描述:</strong></td><td>${info.description || '无描述'}</td></tr>
+                        <tr><td><strong>上传时间:</strong></td><td>${info.upload_time.replace('T', ' ')}</td></tr>
+                        <tr><td><strong>下载次数:</strong></td><td>${info.download_count || 0}</td></tr>
+                    </table>
+                    <div class="api-urls">
+                        <h4>API 地址:</h4>
+                        <p><strong>固件信息:</strong><br><code>GET http://${window.location.host}/api/firmware/info/${version}</code></p>
+                        <p><strong>下载地址:</strong><br><code>GET http://${window.location.host}/api/firmware/download/${version}</code></p>
+                    </div>
+                </div>
+            `;
+            
+            document.getElementById('firmware-details').innerHTML = details;
+            document.getElementById('firmware-modal').style.display = 'block';
+        }
+
+        function closeModal() {
+            document.getElementById('firmware-modal').style.display = 'none';
+        }
+
+        function testApi(endpoint) {
+            const resultDiv = document.getElementById('api-result');
+            resultDiv.innerHTML = `<div class="loading">正在测试 ${endpoint}...</div>`;
+            
+            fetch(endpoint)
+                .then(response => response.json())
+                .then(data => {
+                    resultDiv.innerHTML = `
+                        <div class="api-success">
+                            <h4>✅ API 测试成功</h4>
+                            <p><strong>接口:</strong> ${endpoint}</p>
+                            <pre>${JSON.stringify(data, null, 2)}</pre>
+                        </div>
+                    `;
+                })
+                .catch(error => {
+                    resultDiv.innerHTML = `
+                        <div class="api-error">
+                            <h4>❌ API 测试失败</h4>
+                            <p><strong>接口:</strong> ${endpoint}</p>
+                            <p><strong>错误:</strong> ${error.message}</p>
+                        </div>
+                    `;
+                });
+        }
+
+        function showToast(message) {
+            const toast = document.createElement('div');
+            toast.className = 'toast';
+            toast.textContent = message;
+            document.body.appendChild(toast);
+            
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                setTimeout(() => toast.remove(), 300);
+            }, 2000);
+        }
+
+        // 点击模态框外部关闭
+        window.onclick = function(event) {
+            const modal = document.getElementById('firmware-modal');
+            if (event.target == modal) {
+                modal.style.display = "none";
+            }
+        }
+
+        // 自动隐藏消息提示
+        setTimeout(() => {
+            const alerts = document.querySelectorAll('.alert');
+            alerts.forEach(alert => {
+                alert.style.transition = 'opacity 0.5s';
+                alert.style.opacity = '0';
+                setTimeout(() => alert.remove(), 500);
+            });
+        }, 5000);
+    </script>
+</body>
+</html>

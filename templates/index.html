@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>STM32 OTA 固件更新服务器</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🚀 STM32 OTA 固件更新服务器</h1>
+            <p>支持 STM32F103ZET6 Bootloader 固件上传和OTA更新</p>
+        </header>
+
+        <nav>
+            <a href="{{ url_for('index') }}" class="btn btn-nav active">上传固件</a>
+            <a href="{{ url_for('manage') }}" class="btn btn-nav">管理固件</a>
+        </nav>
+
+        <!-- 消息提示 -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category }}">
+                        {{ message }}
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <!-- 上传表单 -->
+        <div class="upload-section">
+            <h2>📁 上传新固件</h2>
+            <form method="POST" action="{{ url_for('upload_file') }}" enctype="multipart/form-data" class="upload-form">
+                <div class="form-group">
+                    <label for="version">版本号:</label>
+                    <input type="text" id="version" name="version" required 
+                           placeholder="例如: 1.0.0" pattern="[0-9]+\.[0-9]+\.[0-9]+">
+                    <small>格式: 主版本.次版本.修订版本 (如: 1.0.0)</small>
+                </div>
+
+                <div class="form-group">
+                    <label for="description">版本描述:</label>
+                    <textarea id="description" name="description" rows="3" 
+                              placeholder="描述此版本的更新内容..."></textarea>
+                </div>
+
+                <div class="form-group">
+                    <label for="file">固件文件:</label>
+                    <input type="file" id="file" name="file" accept=".bin,.hex" required>
+                    <small>支持格式: .bin, .hex | 最大大小: 2MB</small>
+                </div>
+
+                <button type="submit" class="btn btn-primary">🚀 上传固件</button>
+            </form>
+        </div>
+
+        <!-- 现有固件列表 -->
+        <div class="firmware-list">
+            <h2>📋 已上传固件</h2>
+            {% if firmware_list %}
+                <div class="firmware-grid">
+                    {% for version, info in firmware_list.items() %}
+                        <div class="firmware-card">
+                            <div class="firmware-header">
+                                <h3>版本 {{ version }}</h3>
+                                <span class="badge">{{ "%.1f"|format(info.size / 1024) }} KB</span>
+                            </div>
+                            
+                            <div class="firmware-info">
+                                <p><strong>描述:</strong> {{ info.description or '无描述' }}</p>
+                                <p><strong>文件:</strong> {{ info.original_name }}</p>
+                                <p><strong>大小:</strong> {{ info.size }} 字节</p>
+                                <p><strong>MD5:</strong> <code>{{ info.md5[:16] }}...</code></p>
+                                <p><strong>上传时间:</strong> {{ info.upload_time[:19] }}</p>
+                                <p><strong>下载次数:</strong> {{ info.download_count or 0 }}</p>
+                            </div>
+                            
+                            <div class="firmware-actions">
+                                <a href="/api/firmware/download/{{ version }}" 
+                                   class="btn btn-small btn-success">📥 下载</a>
+                                <button onclick="copyApiUrl('{{ version }}')" 
+                                        class="btn btn-small btn-info">📋 复制API</button>
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <div class="empty-state">
+                    <p>📭 还没有上传任何固件</p>
+                    <p>使用上面的表单上传第一个固件文件</p>
+                </div>
+            {% endif %}
+        </div>
+
+        <!-- API 信息 -->
+        <div class="api-info">
+            <h2>🔧 STM32 API 接口</h2>
+            <div class="api-endpoints">
+                <div class="api-endpoint">
+                    <strong>测试连接:</strong>
+                    <code>GET http://{{ request.host }}/api/test</code>
+                </div>
+                <div class="api-endpoint">
+                    <strong>获取最新固件:</strong>
+                    <code>GET http://{{ request.host }}/api/firmware/latest</code>
+                </div>
+                <div class="api-endpoint">
+                    <strong>获取固件列表:</strong>
+                    <code>GET http://{{ request.host }}/api/firmware/list</code>
+                </div>
+                <div class="api-endpoint">
+                    <strong>下载固件:</strong>
+                    <code>GET http://{{ request.host }}/api/firmware/download/{version}</code>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <footer>
+        <p>STM32F103ZET6 Bootloader OTA Server | Generated with Claude Code</p>
+    </footer>
+
+    <script>
+        function copyApiUrl(version) {
+            const url = `http://${window.location.host}/api/firmware/download/${version}`;
+            navigator.clipboard.writeText(url).then(() => {
+                alert('API URL 已复制到剪贴板！');
+            }).catch(() => {
+                prompt('复制此 URL:', url);
+            });
+        }
+
+        // 文件选择时显示预览信息
+        document.getElementById('file').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                const sizeKB = (file.size / 1024).toFixed(1);
+                const info = `选择的文件: ${file.name} (${sizeKB} KB)`;
+                
+                let infoElement = document.getElementById('file-info');
+                if (!infoElement) {
+                    infoElement = document.createElement('div');
+                    infoElement.id = 'file-info';
+                    infoElement.className = 'file-info';
+                    e.target.parentNode.appendChild(infoElement);
+                }
+                infoElement.textContent = info;
+            }
+        });
+
+        // 自动隐藏消息提示
+        setTimeout(() => {
+            const alerts = document.querySelectorAll('.alert');
+            alerts.forEach(alert => {
+                alert.style.transition = 'opacity 0.5s';
+                alert.style.opacity = '0';
+                setTimeout(() => alert.remove(), 500);
+            });
+        }, 5000);
+    </script>
+</body>
+</html>
