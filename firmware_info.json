@@ -1,0 +1,20 @@
+{
+  "1.0.0": {
+    "filename": "firmware_v1.0.0_1755760270.bin",
+    "original_name": "firmware_v1.0.0_1755739588.bin",
+    "size": 7928,
+    "md5": "b98cff8afc6fb287ec57db4188ab9a01",
+    "description": "1",
+    "upload_time": "2025-08-21T15:11:10.241913",
+    "download_count": 0
+  },
+  "1.0.1": {
+    "filename": "firmware_v1.0.1_1755760282.bin",
+    "original_name": "firmware_v1.0.0_1755745060.bin",
+    "size": 16220,
+    "md5": "5dfa0c60fe1eac41e5855fb0ffffca23",
+    "description": "2",
+    "upload_time": "2025-08-21T15:11:22.035356",
+    "download_count": 1
+  }
+}
