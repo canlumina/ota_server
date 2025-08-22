@@ -1,6 +1,6 @@
 # STM32 OTA 固件更新服务器
 
-基于Flask的独立Web服务器，为STM32固件提供上传、管理和OTA下载功能。
+基于Flask的Web服务器，为STM32F103ZET6 Bootloader提供固件上传、管理和OTA下载功能。
 
 ## 🚀 功能特性
 
@@ -22,14 +22,8 @@
 ### 1. 安装依赖
 
 ```bash
-# 克隆项目
-git clone <repository_url>
-cd ota_server
-
-# 创建虚拟环境（推荐）
-python -m venv venv
-source venv/bin/activate  # Linux/Mac
-# 或 venv\Scripts\activate  # Windows
+# 进入服务器目录
+cd test/ota_server
 
 # 安装Python依赖
 pip install -r requirements.txt
@@ -42,19 +36,19 @@ pip install -r requirements.txt
 python server.py
 ```
 
-服务器将在 `http://localhost:3685` 启动。
+服务器将在 `http://localhost:5000` 启动。
 
 ### 3. 访问界面
 
-- **主页 (固件上传)**: http://localhost:3685
-- **管理界面**: http://localhost:3685/manage
-- **API测试**: http://localhost:3685/api/test
+- **主页 (固件上传)**: http://localhost:5000
+- **管理界面**: http://localhost:5000/manage
+- **API测试**: http://localhost:5000/api/test
 
 ## 🌐 Web界面使用
 
 ### 固件上传
 
-1. 访问主页 http://localhost:3685
+1. 访问主页 http://localhost:5000
 2. 填写版本号 (格式: 1.0.0)
 3. 添加版本描述 (可选)
 4. 选择.bin或.hex固件文件
@@ -62,7 +56,7 @@ python server.py
 
 ### 固件管理
 
-1. 访问管理页面 http://localhost:3685/manage
+1. 访问管理页面 http://localhost:5000/manage
 2. 查看所有已上传固件的详细信息
 3. 下载、删除或查看固件详情
 4. 测试API接口连通性
@@ -148,7 +142,7 @@ GET /api/firmware/download/<version>
 esp8266_status_t test_ota_server(const char* server_ip) {
     char cmd[128];
     snprintf(cmd, sizeof(cmd), 
-             "AT+CIPSTART=0,\"TCP\",\"%s\",3685", server_ip);
+             "AT+CIPSTART=0,\"TCP\",\"%s\",5000", server_ip);
     
     if (esp8266_send_command(cmd, "OK", 10000) != ESP8266_OK) {
         return ESP8266_ERROR;
@@ -157,7 +151,7 @@ esp8266_status_t test_ota_server(const char* server_ip) {
     // 发送HTTP GET请求
     const char* http_request = 
         "GET /api/test HTTP/1.1\r\n"
-        "Host: %s:3685\r\n"
+        "Host: %s:5000\r\n"
         "Connection: close\r\n\r\n";
     
     char request[256];
@@ -171,7 +165,7 @@ esp8266_status_t get_latest_firmware_info(const char* server_ip) {
     // 建立连接
     char cmd[128];
     snprintf(cmd, sizeof(cmd), 
-             "AT+CIPSTART=0,\"TCP\",\"%s\",3685", server_ip);
+             "AT+CIPSTART=0,\"TCP\",\"%s\",5000", server_ip);
     
     if (esp8266_send_command(cmd, "OK", 10000) != ESP8266_OK) {
         return ESP8266_ERROR;
@@ -180,7 +174,7 @@ esp8266_status_t get_latest_firmware_info(const char* server_ip) {
     // 发送HTTP请求
     const char* http_request = 
         "GET /api/firmware/latest HTTP/1.1\r\n"
-        "Host: %s:3685\r\n"
+        "Host: %s:5000\r\n"
         "Connection: close\r\n\r\n";
     
     char request[256];
@@ -194,7 +188,7 @@ esp8266_status_t download_firmware(const char* server_ip, const char* version) {
     // 建立连接
     char cmd[128];
     snprintf(cmd, sizeof(cmd), 
-             "AT+CIPSTART=0,\"TCP\",\"%s\",3685", server_ip);
+             "AT+CIPSTART=0,\"TCP\",\"%s\",5000", server_ip);
     
     if (esp8266_send_command(cmd, "OK", 10000) != ESP8266_OK) {
         return ESP8266_ERROR;
@@ -204,7 +198,7 @@ esp8266_status_t download_firmware(const char* server_ip, const char* version) {
     char request[512];
     snprintf(request, sizeof(request),
         "GET /api/firmware/download/%s HTTP/1.1\r\n"
-        "Host: %s:3685\r\n"
+        "Host: %s:5000\r\n"
         "Connection: close\r\n\r\n",
         version, server_ip);
     
@@ -249,14 +243,14 @@ app.config['MAX_CONTENT_LENGTH'] = 2 * 1024 * 1024
 # 允许的文件扩展名
 ALLOWED_EXTENSIONS = {'bin', 'hex'}
 
-# 服务器端口 (默认3685)
-app.run(host='0.0.0.0', port=3685, debug=True)
+# 服务器端口 (默认5000)
+app.run(host='0.0.0.0', port=5000, debug=True)
 ```
 
 ### 网络配置
 
 - **局域网访问**: 使用 `0.0.0.0` 允许局域网内其他设备访问
-- **端口设置**: 默认端口3685，可在防火墙中开放
+- **端口设置**: 默认端口5000，可在防火墙中开放
 - **HTTPS**: 生产环境建议配置SSL证书
 
 ## 🚨 安全注意事项
@@ -274,7 +268,7 @@ app.run(host='0.0.0.0', port=3685, debug=True)
 **1. 服务器无法启动**
 ```bash
 # 检查端口是否被占用
-netstat -an | grep 3685
+netstat -an | grep 5000
 
 # 更换端口
 python server.py  # 修改server.py中的端口号
@@ -283,7 +277,7 @@ python server.py  # 修改server.py中的端口号
 **2. STM32无法连接**
 ```bash
 # 检查防火墙设置
-sudo ufw allow 3685
+sudo ufw allow 5000
 
 # 检查IP地址
 ip addr show
@@ -338,14 +332,6 @@ def register_device():
 - 使用浏览器开发者工具调试API
 - 参考STM32 bootloader文档
 
-## 🎯 项目特点
-
-- **独立部署**: 作为独立项目运行，不依赖其他代码库
-- **轻量级**: 基于Flask的简洁实现，易于维护和扩展
-- **多平台**: 支持Linux、Windows、macOS等操作系统
-- **安全可靠**: 内置文件验证、类型检查和完整性校验
-- **易于集成**: 标准REST API接口，支持各种STM32项目
-
 ---
 
-**STM32 OTA固件更新服务器 | Generated with Claude Code**
+**STM32F103ZET6 Bootloader OTA Server | Generated with Claude Code**

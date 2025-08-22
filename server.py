@@ -62,11 +62,7 @@ def get_file_size(file_path):
 def index():
     """主页 - 固件上传界面"""
     firmware_info = load_firmware_info()
-    # 按上传时间排序（最新的在前面）
-    sorted_firmware = dict(sorted(firmware_info.items(), 
-                                 key=lambda x: x[1]['upload_time'], 
-                                 reverse=True))
-    return render_template('index.html', firmware_list=sorted_firmware)
+    return render_template('index.html', firmware_list=firmware_info)
 
 @app.route('/upload', methods=['POST'])
 def upload_file():
@@ -132,11 +128,7 @@ def upload_file():
 def manage():
     """固件管理页面"""
     firmware_info = load_firmware_info()
-    # 按上传时间排序（最新的在前面）
-    sorted_firmware = dict(sorted(firmware_info.items(), 
-                                 key=lambda x: x[1]['upload_time'], 
-                                 reverse=True))
-    return render_template('manage.html', firmware_list=sorted_firmware)
+    return render_template('manage.html', firmware_list=firmware_info)
 
 @app.route('/delete/<version>', methods=['POST'])
 def delete_firmware(version):
@@ -248,9 +240,9 @@ def api_download_firmware(version):
                 'message': 'No firmware available'
             }), 404
         
-        # 获取最新版本（按上传时间排序）
-        version = max(firmware_info.keys(), 
-                     key=lambda k: firmware_info[k]['upload_time'])
+        # 获取最新版本（简单字符串排序，假设版本格式为x.y.z）
+        sorted_versions = sorted(firmware_info.keys(), reverse=True)
+        version = sorted_versions[0]
     
     if version not in firmware_info:
         return jsonify({
